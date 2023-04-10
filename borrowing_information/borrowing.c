@@ -13,7 +13,9 @@
 
 //设置最大借阅时长为30天, 以秒记(30 x 24 x 60 x 60)
 #define LENDING_LIM 2592000
-#define RECORD_LEN 34
+
+//readerID + isbn + date + 3 = 11 + 13 + 8 + 3 = 35
+#define RECORD_LEN 35
 
 #define BOOK_INFO "data/books.csv"
 
@@ -26,8 +28,6 @@ typedef struct bookInfo{
 };
 
 //一个人可以借多本书，所以书籍信息要以 数组[]形式 存储
-
-
 typedef struct readerRecord{
     char readerID[11];
 
@@ -43,10 +43,6 @@ typedef struct RecordList{
     int last;
 }Records;
 
-//硬盘中的csv文件需要先初始化到内存当中，即，将csv中的数据转化为内存中的链表来操作，所以我们需要一个类似 init()函数
-
-//返回一个链表的头指针,方便我们操作链表
-//record.csv初始时没有数据，应该在程序运行时创建？
 
 Records * init_Records(){
     Records * L;
@@ -55,7 +51,6 @@ Records * init_Records(){
     if(L != NULL){
         L -> last = -1;
     }
-
     return L;
 }
 
@@ -79,7 +74,7 @@ int addRecord(Records * L, struct readerRecord rd){
     return L ->last;
 }
 
-//用户归还所有书时消除记录, returning all Book
+//用户归还所有书时消除记录
 //i 是数组索引，而不是真实位置（就是从0开始数）
 int deleteRecord(Records * L, int i){
     if(i < 0|| i > L -> last){
@@ -107,25 +102,37 @@ int checkReaderIndex(Records * L, char * readerID){
     return -1;
 }
 
-//修改records.csv文件
+//给外部调用的接口，查看借阅信息
+struct readerRecord checkRecords(Records *L, char *readerID){
+    int readerindex = checkReaderIndex(L, readerID);
+    struct readerRecord record = L ->readerRecord[readerindex];
+    return record;
+}
+
+//修改records.csv文件,作用是对顺序表的修改同步到文件中
 //1表示增, 2表示删, 不需要设置查,查询直接从内存查寻就行, 文件内容始终和内存保持同步
 
-int editFile(int opt, char *readerID, char *isbn, char *borrowingDate){
-    FILE *fp;
-    fp = fopen("records.csv", "w");
+int saveFile(Records *L, char *filename){
 
-    if(opt == 1){
-        char record[RECORD_LEN] = "";
-        sprintf(record, "%s,%s,%s\n", readerID, isbn, borrowingDate);
-        fputs(record, "records.csv");
+    FILE *fp = fopen(filename, "w");
 
+    char record[RECORD_LEN] = "";
 
-    } else if(opt == 2){
+    char readerID[11] = "";
+    char isbn[13] = "";
+    char borrowingDate[8] = "";
 
+    for(int i = 0; i < L ->last + 1; i++ )
+        for(int j = 0; j < L ->readerRecord[i].bookCounter; j++){
+            strcpy(readerID, L ->readerRecord[i].readerID);
+            strcpy(isbn, L ->readerRecord[i].bookInfo[j].ISBN);
+            strcpy(borrowingDate, L ->readerRecord[i].bookInfo[j].borrowingDate);
 
-    }
+            sprintf(record, "%s,%s,%s\n", readerID, isbn, borrowingDate);
+            fputs(record, fp);
+        }
 
-    fclose("records.csv");
+    fclose(fp);
 }
 
 //专门用于初始化结构体 bookInfo中的成员 borrowingDate
@@ -154,7 +161,7 @@ char* formatDate(int opt){
     return date;
 }
 
-//  初始化借阅的书籍信息
+//  初始化借阅的书籍信息, 借书时需要调用
 struct bookInfo initBookInfo(char *isbn){
 
     struct bookInfo bookinfo;
@@ -172,21 +179,16 @@ int addBookInfo(Records * L, int readerIndex, char *isbn){
     int * bookAmount = &(L ->readerRecord[readerIndex].bookCounter);
     struct bookInfo *book = (L ->readerRecord[readerIndex].bookInfo);
 
+    //这里不考虑合法性
     //先判断是否超出借阅上限
-    if(*bookAmount >= 3){
-        printf("Over the borrowing limit!");
-        return 0;
-    }
+//    if(*bookAmount >= 3){
+//        printf("Over the borrowing limit!");
+//        return 0;
+//    }
 
     // 如果amount = 2说明用户已经接了两本书,那么新书信息应该更新在bookInfo[2]中, 即
-
     *(book + *bookAmount) = initBookInfo(isbn);
     *bookAmount += 1;
-
-//    修改csv文件
-    char *readerID = &(L ->readerRecord[readerIndex].readerID);
-    char *borrowingDate = (book + *bookAmount - 1) ->borrowingDate;
-    editFile(1,readerID, isbn, borrowingDate);
 
     return 1;
 }
@@ -196,10 +198,8 @@ int addBookInfo(Records * L, int readerIndex, char *isbn){
 //  2.检索顺序表
 //  3.调用addBook
 int borrowingBook(Records * L, char *readerID, char *isbn){
-//    FILE *fp;
-//    fp = fopen("books.csv", "r");
+    //不写了，检查馆藏交给main
     //// -> 调用查询接口
-
 
 //        首先查看用户是否已经有借阅记录, result值为该用户借阅记录在顺序表中的索引值
     int readerindex = checkReaderIndex(L, readerID);
@@ -255,6 +255,8 @@ void returningBook(Records *L, char *readerID, char *isbn){
         if(result == 0){
             reduceBookInfo(book, bookindex, *amount);
             *amount -= 1;
+
+            //这个也不写了，交给main
             //// -> 调用函数,增加馆藏数量
             break;
         }
@@ -267,6 +269,4 @@ void returningBook(Records *L, char *readerID, char *isbn){
     }
 
 }
-
-
 
