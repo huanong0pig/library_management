@@ -8,42 +8,6 @@
 #include <string.h>
 #include "time.h"
 
-//能产生的最多借阅记录， maxsize = 馆藏所有图书数量/4，即所有图书同时被借走的情况
-#define RECORD_MAXSIZE 2000
-
-//设置最大借阅时长为30天, 以秒记(30 x 24 x 60 x 60)
-#define LENDING_LIM 2592000
-
-//readerID + isbn + date + 3 = 11 + 13 + 8 + 3 = 35
-#define RECORD_LEN 35
-
-#define BOOK_INFO "data/books.csv"
-
-typedef struct bookInfo{
-    char ISBN[13];
-    char borrowingDate [8];
-
-    //借阅时间默认为30天，所以归还日期不需要从csv中读取，只要程序运行的时候生成就行了
-    char returningDate [8];
-};
-
-//一个人可以借多本书，所以书籍信息要以 数组[]形式 存储
-typedef struct readerRecord{
-    char readerID[11];
-
-    //需要在结构体中单独添加成员来计算已借书数量吗?
-    int bookCounter;
-
-    //一个人最多借四本书
-    struct bookInfo bookInfo[4];
-};
-
-typedef struct RecordList{
-    struct readerRecord readerRecord[RECORD_MAXSIZE];
-    int last;
-}Records;
-
-
 Records * init_Records(){
     Records * L;
     L = (Records *)malloc(sizeof(Records));
@@ -174,17 +138,9 @@ struct bookInfo initBookInfo(char *isbn){
 
 //添加书籍, readerIndex是用户在顺序表中的索引值, 我们用它来指示添加书籍信息的位置
 int addBookInfo(Records * L, int readerIndex, char *isbn){
-
     //amount用来表示用户已经借的书籍数量
     int * bookAmount = &(L ->readerRecord[readerIndex].bookCounter);
     struct bookInfo *book = (L ->readerRecord[readerIndex].bookInfo);
-
-    //这里不考虑合法性
-    //先判断是否超出借阅上限
-//    if(*bookAmount >= 3){
-//        printf("Over the borrowing limit!");
-//        return 0;
-//    }
 
     // 如果amount = 2说明用户已经接了两本书,那么新书信息应该更新在bookInfo[2]中, 即
     *(book + *bookAmount) = initBookInfo(isbn);
@@ -198,10 +154,7 @@ int addBookInfo(Records * L, int readerIndex, char *isbn){
 //  2.检索顺序表
 //  3.调用addBook
 int borrowingBook(Records * L, char *readerID, char *isbn){
-    //不写了，检查馆藏交给main
-    //// -> 调用查询接口
-
-//        首先查看用户是否已经有借阅记录, result值为该用户借阅记录在顺序表中的索引值
+//        首先查看用户是否已经有借阅记录, readerindex值为该用户借阅记录在顺序表中的索引值
     int readerindex = checkReaderIndex(L, readerID);
 
     //0表示当前无借阅记录, 顺序表中无对应记录
@@ -212,6 +165,8 @@ int borrowingBook(Records * L, char *readerID, char *isbn){
 
         readerindex = addRecord(L, rd);
     }
+
+    //// -> 检查用户借阅数量是否合法，调用查询接口看看馆藏
 
     //录入书籍信息
     //status表示添加图书是否成功
@@ -267,6 +222,5 @@ void returningBook(Records *L, char *readerID, char *isbn){
     if( L ->readerRecord[readerindex].bookCounter == 0){
         deleteRecord(L, readerindex);
     }
-
 }
 
